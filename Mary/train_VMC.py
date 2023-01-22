@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 def Train_w_VMC(config,energy,variance,cost):
 
     '''
-    Run RNN using vmc sampling or qmc data. If qmc_data is None, uses vmc sampling. 
+    Run RNN using vmc sampling or qmc data. If qmc_data is None, uses vmc sampling.
     Otherwise uses qmc data loaded in qmc_data
     '''
 
-    # System Parameters 
+    # System Parameters
     Lx = config['Lx']
     Ly = config['Ly']
     V = config['V']
@@ -56,22 +56,22 @@ def Train_w_VMC(config,energy,variance,cost):
     for n in range(1, epochs+1):
 
         samples, _ = wavefxn.sample(ns)
-      
+
         # Evaluate the loss function in AD mode
         with tf.GradientTape() as tape:
             sample_logpsi = wavefxn.logpsi(samples)
             with tape.stop_recording():
                 sample_eloc = tf.stop_gradient(wavefxn.localenergy(samples, sample_logpsi))
                 sample_Eo = tf.stop_gradient(tf.reduce_mean(sample_eloc))
-                  
+
             sample_loss = tf.reduce_mean(2.0*tf.multiply(sample_logpsi, tf.stop_gradient(sample_eloc)) - 2.0*sample_Eo*sample_logpsi)
-          
+
             # Compute the gradients either with sample_loss
             gradients = tape.gradient(sample_loss, wavefxn.trainable_variables)
-        
+
             # Update the parameters
             wavefxn.optimizer.apply_gradients(zip(gradients, wavefxn.trainable_variables))
-           
+
         #append the energy to see convergence
         avg_loss = np.mean(sample_loss)
         samples, _ = wavefxn.sample(ns)
@@ -89,22 +89,36 @@ def Train_w_VMC(config,energy,variance,cost):
             print(f"Energy = {avg_E}")
             print(f"Variance = {var_E}")
             print(" ")
-    
+
+    # if config['Write_Data']==True:
+    #     samples_final,_ = wavefxn.sample(10000)
+    #     path = config['save_path']
+    #     if not os.path.exists(path):
+    #         os.makedirs(path)
+    #     with open(path+'/config.txt', 'w') as file:
+    #         for k,v in config.items():
+    #             file.write(k+f'={v}\n')
+    #     np.save(path+'/Energy',energy)
+    #     np.save(path+'/Variance',variance)
+    #     np.save(path+'/Samples',samples)
+
     if config['Write_Data']==True:
         samples_final,_ = wavefxn.sample(10000)
-        path = config['save_path']
-        if not os.path.exists(path):
-            os.makedirs(path)
-        with open(path+'/config.txt', 'w') as file:
+        #path = config['save_path']
+        datapath = '../Runs'
+        save_path = datapath + "/" + config['name']
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        with open(save_path+'/config.txt', 'w') as file:
             for k,v in config.items():
                 file.write(k+f'={v}\n')
-        np.save(path+'/Energy',energy)
-        np.save(path+'/Variance',variance)
-        np.save(path+'/Samples',samples)
-    
+        np.save(save_path+'/Energy',energy)
+        np.save(save_path+'/Variance',variance)
+        np.save(save_path+'/Samples',samples)
+
     if config['Plot']:
         plot_E(energy, exact_e, wavefxn.N, epochs)
         plot_var(variance, wavefxn.N, epochs)
         plot_loss(cost, wavefxn.N, epochs, loss_type = '$\\langle H \\rangle$ - $E_0$')
-            
+
     return wavefxn, energy, variance, cost

@@ -1,7 +1,7 @@
 import os
 import tensorflow as tf
 import numpy as np
-from dset_helpers import load_exact_Es,load_QMC_data,create_tf_dataset
+from dset_helpers import load_exact_Es,load_QMC_data,load_noise_data,create_tf_dataset
 from OneD_RNN import OneD_RNN_wavefxn
 from helpers import save_path
 from plots import plot_E,plot_var,plot_loss
@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 def run_DataPlusVMC(config,energy,variance):
 
     '''
-    Run RNN using vmc sampling or qmc data. If qmc_data is None, uses vmc sampling. 
+    Run RNN using vmc sampling or qmc data. If qmc_data is None, uses vmc sampling.
     Otherwise uses qmc data loaded in qmc_data
     '''
 
-    # Set the parameters of the RNN 
+    # Set the parameters of the RNN
     Lx = config['Lx']
     Ly = config['Ly']
     V = config['V']
@@ -48,6 +48,7 @@ def run_DataPlusVMC(config,energy,variance):
     data_step = config['data_step']
     exact_e = load_exact_Es(Lx)
     data = load_QMC_data(Lx)
+    #data = load_noise_data(Lx)
     tf_dataset = create_tf_dataset(data,data_step)
     #if config['scramble']:
         #tf_dataset = data_scramble(tf_dataset)
@@ -68,7 +69,7 @@ def run_DataPlusVMC(config,energy,variance):
 
     elif config['VMC_epochs'] == 0:
         config['Train_Method'] = 'Data_Only'
-        if config['Print'] ==True:  
+        if config['Print'] ==True:
             print("Training with data.")
             print(" ")
         Total_epochs = Data_epochs
@@ -88,38 +89,38 @@ def run_DataPlusVMC(config,energy,variance):
         if (data != None) & (n<=Data_epochs):
             dset = data.shuffle(len(data))
             dset = dset.batch(batch_size)
-        
+
             for i, batch in enumerate(dset):
                 # Evaluate the loss function in AD mode
                 with tf.GradientTape() as tape:
                     logpsi = wavefxn.logpsi(batch)
-                    
+
                     loss = - 2.0 * tf.reduce_mean(logpsi)
 
                 # Compute the gradients either with qmc_loss
                 gradients = tape.gradient(loss, wavefxn.trainable_variables)
-              
+
                 # Update the parameters
                 wavefxn.optimizer.apply_gradients(zip(gradients, wavefxn.trainable_variables))
 
         else:
             samples, _ = wavefxn.sample(ns)
-      
+
             # Evaluate the loss function in AD mode
             with tf.GradientTape() as tape:
                 sample_logpsi = wavefxn.logpsi(samples)
                 with tape.stop_recording():
                     sample_eloc = tf.stop_gradient(wavefxn.localenergy(samples, sample_logpsi))
                     sample_Eo = tf.stop_gradient(tf.reduce_mean(sample_eloc))
-                  
+
                 sample_loss = tf.reduce_mean(2.0*tf.multiply(sample_logpsi, tf.stop_gradient(sample_eloc)) - 2.0*sample_Eo*sample_logpsi)
-          
+
                 # Compute the gradients either with sample_loss
                 gradients = tape.gradient(sample_loss, wavefxn.trainable_variables)
-        
+
                 # Update the parameters
                 wavefxn.optimizer.apply_gradients(zip(gradients, wavefxn.trainable_variables))
-           
+
         #append the energy to see convergence
         samples, _ = wavefxn.sample(ns)
         sample_logpsi = wavefxn.logpsi(samples)
@@ -135,21 +136,11 @@ def run_DataPlusVMC(config,energy,variance):
             print(f"Energy = {avg_E}")
             print(f"Variance = {var_E}")
             print(" ")
-    
-    if config['Write_Data']==True:
-        samples_final,_ = wavefxn.sample(10000,False)
-        path = config['save_path']
-        if not os.path.exists(path):
-            os.makedirs(path)
-        with open(path+'/config.txt', 'w') as file:
-            for k,v in config.items():
-                file.write(k+f'={v}\n')
-        np.save(path+'/Energy',energy)
-        np.save(path+'/Variance',variance)
-        np.save(path+'/Samples',samples)
-    
+
+
+
     if config['Plot']:
         plot_E(energy, exact_e, wavefxn.N, Total_epochs)
         plot_var(variance, wavefxn.N, Total_epochs)
-            
+
     return wavefxn, energy, variance

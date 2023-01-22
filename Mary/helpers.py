@@ -9,7 +9,7 @@ def save_path(config,Nspins):#rnn_wf,rnn_type:str,model:str):
     rnn = config['RNN']
     model = config['Train_Method']
     name = config['name']
-    datapath = f'../data/Experiments_1/{model}'
+    datapath = f'/Runs'
     rnn_type = f'/{rnn}'
     experiment = f'/N={N}/V={V}/delta={delta}/Omega={Omega}/{name}'
     save_path = datapath + rnn_type + experiment 

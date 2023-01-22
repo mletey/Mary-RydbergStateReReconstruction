@@ -22,6 +22,16 @@ def load_QMC_data(dim):
         uploaded[file] = data
     return uploaded
 
+def load_noise_data(dim):
+    path = "./QMC_data"
+    dim_path = f"Dim={dim}_M=1000000_V=7_omega=1.0_delta=1.0" # Can change this to look at Dim = 4, 8, 12, 16
+    files_we_want = glob.glob(os.path.join(path,dim_path,'noisedsamples*'))
+    uploaded = {}
+    for file in files_we_want:
+        data = np.loadtxt(file)
+        uploaded[file] = data
+    return uploaded
+
 def create_tf_dataset(uploaded_files, data_step_size=100):
     '''
     create tensor flow data set from uploaded files

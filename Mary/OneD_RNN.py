@@ -1,28 +1,28 @@
-import numpy as np 
-import tensorflow as tf 
+import numpy as np
+import tensorflow as tf
 import random
 
 class OneD_RNN_wavefxn(tf.keras.Model):
-    
+
     # Constructor
-    def __init__(self, Lx, Ly, 
+    def __init__(self, Lx, Ly,
                  V, Omega, delta,
                  num_hidden, learning_rate,
                  weight_sharing = True,
                  trunc=2, seed=1234):
-        
+
         super(OneD_RNN_wavefxn, self).__init__()
 
         """ PARAMETERS """
         self.Lx       = Lx              # Size along x
         self.Ly       = Ly              # Size along y
-        self.N        = self.Lx * self.Ly
+        self.N        = self.Lx * self.Ly # total number of Rydberg atom sites
         self.V        = V               # Van der Waals potential
         self.Omega    = Omega           # Rabi frequency
         self.delta    = delta           # Detuning
         self.trunc    = trunc           # Truncation, set to Lx+Ly for none, default is 2
         self.nh       = num_hidden      # Number of hidden units in the RNN
-        self.seed     = seed            # Seed of random number generator 
+        self.seed     = seed            # Seed of random number generator
         self.K        = 2               # Dimension of the local Hilbert space
         self.weight_sharing = weight_sharing # Option to share weights between RNN cells or not (always true for OneD RNN)
 
@@ -59,10 +59,10 @@ class OneD_RNN_wavefxn(tf.keras.Model):
 
         # Generate the list of interactions
         self.buildlattice()
-        
+
     @tf.function
     def sample(self,nsamples):
-        # Zero initialization for visible and hidden state 
+        # Zero initialization for visible and hidden state
         # print("sampling!")
         inputs = 0.0*tf.one_hot(tf.zeros(shape=[nsamples,1],dtype=tf.int32),depth=self.K)
         hidden_state = tf.zeros(shape=[nsamples,self.nh])
@@ -86,7 +86,7 @@ class OneD_RNN_wavefxn(tf.keras.Model):
             add = tf.reduce_sum(log_probs*tf.reshape(inputs,(nsamples,self.K)),axis=1)
 
             logP = logP+tf.reduce_sum(log_probs*tf.reshape(inputs,(nsamples,self.K)),axis=1)
-        
+
         return samples,logP
 
     @tf.function
@@ -97,13 +97,13 @@ class OneD_RNN_wavefxn(tf.keras.Model):
 
         x0 = 0.0*tf.one_hot(tf.zeros(shape=[num_samples,1],dtype=tf.int32),depth=self.K) #initialization
         inputs = tf.concat([x0,data],axis=1)
-        
+
         hidden_state = tf.zeros(shape=[num_samples,self.nh])
         rnn_output,_ = self.rnn(inputs,initial_state = hidden_state)
         probs        = self.dense(rnn_output)
-            
+
         log_probs   = tf.reduce_sum(tf.multiply(tf.math.log(1e-10+probs),tf.one_hot(samples,depth=self.K)),axis=2)
-        
+
         return 0.5 * tf.reduce_sum(log_probs, axis=1)
 
     #@tf.function
@@ -125,41 +125,41 @@ class OneD_RNN_wavefxn(tf.keras.Model):
             flip_samples[:,j] = 1 - flip_samples[:,j]
             flip_logpsi = self.logpsi(flip_samples)
             eloc += -0.5*self.Omega * tf.math.exp(flip_logpsi-logpsi)
-            
+
         return eloc
 
     """ Generate the square lattice structures """
     def coord_to_site(self,x,y):
         return self.Ly*x+y
-    
+
     def buildlattice(self):
         self.interactions = []
-        
+
         for n in range(1,self.Lx):
             for n_ in range(n+1):
-                
+
                 if n+n_ > self.trunc:
                     continue
-        
+
                 else:
                     for x in range(self.Lx-n_):
                         for y in range(self.Ly-n):
                             coeff = np.sqrt(n**2+n_**2)**6
                             if n_ == 0 :
                                 self.interactions.append([coeff,self.coord_to_site(x,y),self.coord_to_site(x,y+n)])
-                            elif n == n_: 
+                            elif n == n_:
                                 self.interactions.append([coeff,self.coord_to_site(x,y),self.coord_to_site(x+n,y+n)])
                                 self.interactions.append([coeff,self.coord_to_site(x+n,y),self.coord_to_site(x,y+n)])
                             else:
                                 self.interactions.append([coeff,self.coord_to_site(x,y),self.coord_to_site(x+n_,y+n)])
                                 self.interactions.append([coeff,self.coord_to_site(x+n_,y),self.coord_to_site(x,y+n)])
-                            
+
                     for y in range(self.Ly-n_):
                         for x in range(self.Lx-n):
                             coeff = np.sqrt(n**2+n_**2)**6
                             if n_ == 0 :
                                 self.interactions.append([coeff,self.coord_to_site(x,y),self.coord_to_site(x+n,y)])
-                            elif n == n_: 
+                            elif n == n_:
                                 continue #already counted above
                             else:
                                 self.interactions.append([coeff,self.coord_to_site(x,y),self.coord_to_site(x+n,y+n_)])
